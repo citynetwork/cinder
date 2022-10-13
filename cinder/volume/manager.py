@@ -2268,9 +2268,24 @@ class VolumeManager(manager.CleanableManager,
                                   capabilities.get('sparse_copy_volume',
                                                    False))
 
+        src_device_path = src_attach_info['device']['path']
+        converted_path = None
+
+        # Check if we don't try to copy qcow where it's not supported
+        if src_attach_info['conn']['data'].get('format') == 'qcow2' and \
+            src_attach_info['conn']['driver_volume_type'] == 'nfs' and \
+            src_attach_info['conn']['driver_volume_type'] != \
+                dest_attach_info['conn']['driver_volume_type']:
+
+            converted_path = "%s.raw" % src_attach_info['device']['path']
+            volume_utils.qemu_img_convert(src_attach_info['device']['path'],
+                                          converted_path)
+
+            src_device_path = converted_path
+
         try:
             size_in_mb = int(src_vol['size']) * units.Ki    # vol size is in GB
-            volume_utils.copy_volume(src_attach_info['device']['path'],
+            volume_utils.copy_volume(src_device_path,
                                      dest_attach_info['device']['path'],
                                      size_in_mb,
                                      self.configuration.volume_dd_blocksize,
@@ -2286,6 +2301,8 @@ class VolumeManager(manager.CleanableManager,
                                     remote=dest_remote,
                                     attach_encryptor=attach_encryptor)
             finally:
+                if converted_path:
+                    utils.execute('rm', '-f', converted_path, run_as_root=True)
                 self._detach_volume(ctxt, src_attach_info, src_vol,
                                     properties, force=True,
                                     remote=src_remote,

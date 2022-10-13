@@ -599,6 +599,21 @@ def _transfer_data(src: IO, dest: IO,
     tpool.execute(dest.flush)
 
 
+def qemu_img_convert(src, dest, dst_f='raw'):
+
+    LOG.info("Volume %(src)s is QCOW2, so needs to be converted into RAW",
+                {'src': src})
+    convert_cmd = [
+        'qemu-img', 'convert', '-t', 'none', '-T', 'none', '-O', dst_f, src, dest
+    ]
+    try:
+        utils.execute(*convert_cmd, run_as_root=True)
+    except Exception:
+        with excutils.save_and_reraise_exception():
+            LOG.error("Unable to convert volume %(src)s into %(fmt)s format",
+                      {'src': src, 'fmt': dst_f})
+
+
 def _copy_volume_with_file(src: Union[str, IO],
                            dest: Union[str, IO],
                            size_in_m: int) -> None:
